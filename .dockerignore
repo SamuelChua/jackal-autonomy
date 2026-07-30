@@ -1,0 +1,9 @@
+.git
+.github
+.ros_docker
+.docker.xauth
+data
+ws
+**/__pycache__
+**/.pytest_cache
+**/*.pyc

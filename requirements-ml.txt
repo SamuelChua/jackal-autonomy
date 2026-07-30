@@ -1,0 +1,8 @@
+# Runtime dependencies used directly by jackal_nav2 plus the requested
+# downstream Ultralytics inference stack. PyTorch/torchvision are installed
+# separately from the CUDA 12.1 wheel index in the Dockerfile.
+matplotlib==3.10.3
+numpy==1.26.4
+opencv-python==4.11.0.86
+PyYAML==6.0.2
+ultralytics==8.4.112

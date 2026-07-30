@@ -1,0 +1,20 @@
+[submodule "ws/src/jackal_nav2"]
+	path = ws/src/jackal_nav2
+	url = git@github.com:ankitVP77/jackal_nav2.git
+	branch = main
+[submodule "ws/src/DLIO"]
+	path = ws/src/DLIO
+	url = git@github.com:ankitVP77/DLIO-ROS2-Jazzy.git
+	branch = main
+[submodule "ws/src/groundgrid"]
+	path = ws/src/groundgrid
+	url = git@github.com:ZacRavichandran/groundgrid_ros2.git
+	branch = for_standalone_autonomy
+[submodule "ws/src/ouster-ros"]
+	path = ws/src/ouster-ros
+	url = git@github.com:ZacRavichandran/ouster-ros.git
+	branch = feature/adustable_namespace
+[submodule "ws/src/zed-ros2-wrapper"]
+	path = ws/src/zed-ros2-wrapper
+	url = https://github.com/KumarRobotics/zed-ros2-wrapper.git
+	branch = master

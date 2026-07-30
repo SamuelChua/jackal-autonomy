@@ -1,0 +1,17 @@
+.docker.xauth
+.ros_docker/*
+!.ros_docker/.gitkeep
+
+data/*
+!data/configs/
+data/configs/*
+!data/configs/zed2i.yaml
+!data/configs/usr/
+!data/configs/usr/local/
+!data/configs/usr/local/zed/
+!data/configs/usr/local/zed/settings/
+!data/configs/usr/local/zed/settings/SN34141806.conf
+
+ws/build/
+ws/install/
+ws/log/
