@@ -1,6 +1,7 @@
 # Host-editable shell configuration sourced after the image defaults.
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-2}"
 export HF_HOME="${HF_HOME:-/home/dcist/data/weights/huggingface}"
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 if [ -f /home/dcist/dcist_ws/install/setup.bash ]; then
   source /home/dcist/dcist_ws/install/setup.bash

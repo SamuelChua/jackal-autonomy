@@ -21,7 +21,6 @@ RUN sudo apt-get update \
         libomp-dev \
         libpcl-dev \
         libspdlog-dev \
-        openssh-client \
         python3-matplotlib \
         python3-yaml \
         ros-jazzy-ament-cmake-auto \
@@ -97,16 +96,9 @@ RUN sudo apt-get update \
 # Upgrade only that package in the child layer and verify the Nav2 library ABI.
 RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends --only-upgrade ros-jazzy-diagnostic-updater && nm -D --defined-only /opt/ros/jazzy/lib/libdiagnostic_updater.so | c++filt | grep -E 'diagnostic_updater::Updater::Updater.*double, unsigned char' >/dev/null
 
-# Source is checked out on the host. The requested key is mounted read-only at
-# runtime and is never copied into an image layer or exposed as a build argument.
-RUN install -d -m 0700 /home/dcist/.ssh \
-    && printf '%s\n' \
-        'Host github.com' \
-        '    IdentityFile ~/.ssh/id_ed25519_ankit' \
-        '    IdentitiesOnly yes' \
-        > /home/dcist/.ssh/config \
-    && chmod 0600 /home/dcist/.ssh/config \
-    && printf '%s\n' \
+# Source and Git credentials remain on the host. Only append the shell hooks
+# needed by the externally mounted workspace.
+RUN printf '%s\n' \
         '' \
         '# Jackal autonomy additions' \
         'source /home/dcist/ros_venv/bin/activate' \

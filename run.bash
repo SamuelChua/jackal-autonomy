@@ -2,22 +2,49 @@
 
 set -euo pipefail
 
-if [ "$(id -u)" -ne 1000 ]; then
-  echo "ERROR: This script must be run by the UID-1000 host user."
-  echo "       Current UID: $(id -u), current GID: $(id -g)"
-  exit 1
-fi
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-IMAGE="${1:-${JACKAL_AUTONOMY_IMAGE:-kumarrobotics/jackal_autonomy:jazzy-20260730-r4}}"
+IMAGE_REPOSITORY="${JACKAL_AUTONOMY_REPOSITORY:-kumarrobotics/jackal_autonomy}"
+IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-latest}}"
 USER_WS="$PROJECT_DIR/ws"
 DATA_DIR="$PROJECT_DIR/data"
 ROS_DIR="$PROJECT_DIR/.ros_docker"
 BASHRC_HOST="$PROJECT_DIR/bashrc"
 ZED_CONFIG="$DATA_DIR/configs/zed2i.yaml"
-SSH_KEY="${JACKAL_AUTONOMY_SSH_KEY:-${HOME}/.ssh/id_ed25519_ankit}"
-SSH_PUBLIC_KEY="${SSH_KEY}.pub"
 ZED_SETTINGS="${JACKAL_AUTONOMY_ZED_SETTINGS:-$DATA_DIR/configs/usr/local/zed/settings}"
+
+usage() {
+  echo "Usage: $0 [-t|--tag TAG]"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -t|--tag)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo "ERROR: $1 requires a tag."
+        usage
+        exit 2
+      fi
+      IMAGE="${IMAGE_REPOSITORY}:$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown argument: $1"
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [ "$(id -u)" -ne 1000 ]; then
+  echo "ERROR: This script must be run by the UID-1000 host user."
+  echo "       Current UID: $(id -u), current GID: $(id -g)"
+  exit 1
+fi
 
 if [ ! -d "$USER_WS/src/jackal_nav2" ]; then
   echo "ERROR: Workspace is missing or incomplete: $USER_WS"
@@ -93,15 +120,6 @@ if input_gid="$(getent group input | cut -d: -f3)" && [ -n "$input_gid" ]; then
   docker_args+=(--group-add "$input_gid")
 fi
 
-if [ -f "$SSH_KEY" ]; then
-  docker_args+=(--mount "type=bind,src=$SSH_KEY,dst=/home/dcist/.ssh/id_ed25519_ankit,readonly")
-fi
-if [ -f "$SSH_PUBLIC_KEY" ]; then
-  docker_args+=(--mount "type=bind,src=$SSH_PUBLIC_KEY,dst=/home/dcist/.ssh/id_ed25519_ankit.pub,readonly")
-fi
-if [ -f "${HOME}/.ssh/known_hosts" ]; then
-  docker_args+=(--mount "type=bind,src=${HOME}/.ssh/known_hosts,dst=/home/dcist/.ssh/known_hosts,readonly")
-fi
 if [ -f "${HOME}/.bash_history" ]; then
   docker_args+=(--mount "type=bind,src=${HOME}/.bash_history,dst=/home/dcist/.bash_history")
 fi

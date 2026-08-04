@@ -4,7 +4,35 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 BASE_IMAGE="${BASE_IMAGE:-kumarrobotics/dcist-master-jazzy-nvda:latest}"
-IMAGE="${JACKAL_AUTONOMY_IMAGE:-kumarrobotics/jackal_autonomy:jazzy-20260730-r4}"
+IMAGE_REPOSITORY="${JACKAL_AUTONOMY_REPOSITORY:-kumarrobotics/jackal_autonomy}"
+IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-latest}}"
+
+usage() {
+  echo "Usage: $0 [-t|--tag TAG]"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -t|--tag)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo "ERROR: $1 requires a tag."
+        usage
+        exit 2
+      fi
+      IMAGE="${IMAGE_REPOSITORY}:$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: Unknown argument: $1"
+      usage
+      exit 2
+      ;;
+  esac
+done
 
 if [ "$(id -u)" -ne 1000 ]; then
   echo "ERROR: This script must be run by the UID-1000 host user."
@@ -18,11 +46,6 @@ if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
   exit 2
 fi
 
-if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  echo "ERROR: Refusing to overwrite existing image: $IMAGE"
-  echo "Set JACKAL_AUTONOMY_IMAGE to a new, unused tag before building."
-  exit 3
-fi
 
 echo -e "\033[0;35mBUILDING JACKAL AUTONOMY IMAGE\033[0m"
 echo -e "\033[0;35mBASE IMAGE: \033[0m$BASE_IMAGE"

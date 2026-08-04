@@ -3,7 +3,7 @@
 Standalone Docker image and external ROS 2 Jazzy workspace for
 [`jackal_nav2`](https://github.com/ankitVP77/jackal_nav2).
 
-The image is named `kumarrobotics/jackal_autonomy:jazzy-20260730-r4` and extends the
+The image defaults to `kumarrobotics/jackal_autonomy:latest` and extends the
 existing local `kumarrobotics/dcist-master-jazzy-nvda:latest` image as-is. The
 base is not rebuilt. No additional application source is cloned or copied into
 the derived image; `ws` is populated on the host and bind-mounted over
@@ -33,9 +33,10 @@ package set.
 
 ## First-time setup
 
-The SSH bootstrap uses `~/.ssh/id_ed25519_ankit`. The key must be mode `600`;
-it is used by Git on the host and bind-mounted read-only when a container is
-started. It is never passed as a Docker build argument or baked into an image.
+`sync_workspace.bash` performs Git operations on the host and uses
+`~/.ssh/id_ed25519_ankit` by default; the key must have mode `600`. The key and
+`known_hosts` remain on the host and are never configured, copied, or mounted
+inside the container. Set `JACKAL_AUTONOMY_SSH_KEY` to use another host key.
 
 ```bash
 git clone <this-repository-url> jackal_autonomy
@@ -45,8 +46,15 @@ cd jackal_autonomy
 ./run.bash
 ```
 
-`build.bash` refuses to overwrite an existing output tag. Set
-`JACKAL_AUTONOMY_IMAGE` to a new unused tag when creating another revision.
+Both build and run default to `kumarrobotics/jackal_autonomy:latest`. Builds are
+allowed to overwrite an existing tag. Use the same tag option to build, run, or
+join a named variant:
+
+```bash
+./build.bash --tag experiment
+./run.bash --tag experiment
+./join.bash --tag experiment
+```
 
 Inside the container, build and test the mounted source:
 
@@ -107,16 +115,19 @@ running separately. `safety_controller` is not used.
 
 ## Validation
 
-The current r4 image passed rosdep resolution, a seven-package Colcon build, all
-26 `jackal_nav2` tests, GPU-backed Torch/Ultralytics imports, an 18-ELF runtime
-link scan, and an isolated Nav2 lifecycle/plugin startup. Physical Ouster, ZED,
-and Jackal hardware was not connected during these tests.
+The current `latest` image is validated with rosdep resolution, a seven-package
+Colcon build, all 26 `jackal_nav2` tests, GPU-backed Torch/Ultralytics imports,
+an 18-ELF runtime link scan, and an isolated Nav2 lifecycle/plugin startup.
+Physical Ouster, ZED, and Jackal hardware were not connected during these tests.
 
 ## Configuration
 
-- `JACKAL_AUTONOMY_IMAGE`: override the image tag for build/run/join.
+- `-t TAG`, `--tag TAG`: select a tag for `build.bash`, `run.bash`, or `join.bash`; the CLI option overrides image environment variables.
+- `JACKAL_AUTONOMY_TAG`: default tag when `--tag` is omitted (default `latest`).
+- `JACKAL_AUTONOMY_REPOSITORY`: image repository used with a tag (default `kumarrobotics/jackal_autonomy`).
+- `JACKAL_AUTONOMY_IMAGE`: optional full image reference when `--tag` is omitted.
 - `BASE_IMAGE`: override the local base tag used by `build.bash`.
-- `JACKAL_AUTONOMY_SSH_KEY`: override the requested SSH key path.
+- `JACKAL_AUTONOMY_SSH_KEY`: host-only key used by `sync_workspace.bash`; it is never mounted into the container.
 - `JACKAL_AUTONOMY_ZED_SETTINGS`: override the offline ZED settings directory.
 - `JACKAL_AUTONOMY_SKIP_SYNC=1`: skip the automatic pinned submodule check.
 - `JACKAL_AUTONOMY_SYNC_REMOTE=1`: opt into moving submodules to branch heads.
