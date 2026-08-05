@@ -57,14 +57,6 @@ if [ ! -d "$ZED_SETTINGS" ]; then
   exit 2
 fi
 
-if [ "${JACKAL_AUTONOMY_SKIP_SYNC:-0}" != "1" ]; then
-  if [ "${JACKAL_AUTONOMY_SYNC_REMOTE:-0}" = "1" ]; then
-    "$PROJECT_DIR/sync_workspace.bash" --remote
-  else
-    "$PROJECT_DIR/sync_workspace.bash"
-  fi
-fi
-
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "ERROR: Image is not available locally: $IMAGE"
   echo "Build it with ./build.bash."

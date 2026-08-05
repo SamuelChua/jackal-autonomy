@@ -100,10 +100,14 @@ controller manager loaded and both controllers activated successfully.
   the unused ZED tracking module prevents its synchronous startup from blocking
   camera and IMU publication.
 - The root README documents the unified source closure, single colcon build,
-  Fast DDS, serial alias, separate serial/sensor/navigation launches, and safe
-  validation commands.
-- Existing default image/tag selection and host-only SSH synchronization behavior
-  remains in place.
+  Fast DDS, serial alias, and separate serial/sensor/navigation launches. Safe
+  validation commands are retained in this project context instead.
+- Existing default image/tag selection remains in place. `run.bash` no longer
+  synchronizes the workspace; run `sync_workspace.bash` manually when needed.
+- Keep the untracked `run_personal.bash` synchronized one-to-one with `run.bash`
+  whenever `run.bash` changes. Its only intentional differences are the
+  `HOST_CODEX_DIR` variable and the bind mount from the host `~/.codex` directory
+  to `/home/dcist/.codex` in the container; preserve those Codex-specific lines.
 
 ## Completed validation
 
@@ -142,6 +146,56 @@ controller manager loaded and both controllers activated successfully.
   Jeti inputs while testing controller activation.
 - Navigation validation disabled the Joy command bridge and did not request
   motion. No drive command or navigation goal was issued.
+
+## Safe no-motion validation procedure
+
+Do not invoke `jackal-goto`, call a Nav2 action, publish a goal pose, or issue
+any waypoint/navigation goal during validation.
+
+Start only the physical serial component. Keep ros2_control off because each
+`/joint_states` message is converted into a DRIVE packet by the current serial
+implementation:
+
+```bash
+ros2 launch jackal_launch jackal_serial.launch.py \
+  start_control:=false \
+  start_robot_state_publisher:=false \
+  start_teleop:=false \
+  start_linux_joy:=false \
+  start_jeti:=false
+```
+
+A successful serial connection reaches these messages:
+
+```text
+[SERIAL] Connected to Jackal
+[SERIAL] Writing Time Sync Packet
+Loaded node '/jackal_serial_node' in container '/jackal/PlatformComposition'
+```
+
+This milestone proves that the device opened and the time-sync write returned;
+the current implementation does not read an acknowledgement from the controller.
+
+Validate ros2_control independently, without opening the physical serial port:
+
+```bash
+ros2 launch jackal_launch jackal_serial.launch.py \
+  start_serial:=false start_teleop:=false start_linux_joy:=false start_jeti:=false
+```
+
+In other terminals, launch sensors normally and navigation with its Joy command
+bridge disabled:
+
+```bash
+ros2 launch jackal_nav2 jackal_sensors.launch.py
+ros2 launch jackal_nav2 jackal_navigation.launch.py start_joy_bridge:=false
+```
+
+Together these isolated launches validate sensor, navigation, controller, and
+serial startup without connecting a controller output to the physical serial
+port, starting teleoperation inputs, translating Nav2 velocity commands into Joy
+commands, or sending a navigation goal. Stop each launch with Ctrl-C after the
+startup result is collected.
 
 ## Deferred serial and control issues
 

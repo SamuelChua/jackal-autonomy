@@ -1,4 +1,4 @@
-# Jackal autonomy and serial image
+# Jackal autonomy image
 
 Unified Docker image and external ROS 2 Jazzy workspace for:
 
@@ -28,7 +28,7 @@ unified runtime:
 | Path | Purpose |
 | --- | --- |
 | `ws/src/jackal_nav2` | Standalone Nav2 autonomy with sensor, navigation, recording, and helper launch packages |
-| `ws/src/jackal_serial` | KumarRobotics Jackal serial repository containing the six low-level control and teleoperation packages |
+| `ws/src/jackal_serial` | Jackal serial repository containing the six low-level control and teleoperation packages |
 | `ws/src/DLIO` | `direct_lidar_inertial_odometry` localization |
 | `ws/src/groundgrid` | Ground segmentation and obstacle cloud generation |
 | `ws/src/ouster-ros` | Ouster driver and messages; recursively includes the Ouster SDK |
@@ -41,7 +41,7 @@ packages; they do not need to be copied or built one by one.
 ## First-time setup
 
 `sync_workspace.bash` performs Git submodule operations on the host and uses a
-validated SSH key by default; the key must have mode `600`. Set
+robot validated SSH key by default; the key must have mode `600`. Set
 `JACKAL_AUTONOMY_SSH_KEY` to override the key path. The selected key must have
 read access to the repositories listed in `.gitmodules`.
 
@@ -72,8 +72,10 @@ source /home/dcist/dcist_ws/install/setup.bash
 jackal-test
 ```
 
-`run.bash` automatically restores pinned submodules before launch. To advance
-each submodule to the head of the branch recorded in `.gitmodules`, use the
+Run `./sync_workspace.bash` manually after cloning and whenever you intentionally
+want to restore the submodules to the commits pinned by the outer repository. Take caution to always commit any submodule changes in this repository before running the sync script, because it will reset the submodules to the recorded commits.
+
+To advance each submodule to the head of the branch recorded in `.gitmodules`, use the
 explicit update mode and then review and commit the changed gitlinks:
 
 ```bash
@@ -114,77 +116,62 @@ The tracked `data/configs/usr/local/zed/settings/SN34141806.conf` is also
 mounted read-only at `/usr/local/zed/settings` for offline camera calibration.
 Set `JACKAL_AUTONOMY_ZED_SETTINGS` to use a different settings directory.
 
-Useful aliases inside the container:
+Serial, sensors, and navigation deliberately remain separate processes so each
+part can be started and stopped independently:
+
+- Launch the low-level serial, ros2_control, robot-state-publisher, and
+  teleoperation stack:
+
+  ```bash
+  ros2 launch jackal_launch jackal_serial.launch.py
+  ```
+
+  Inside the container, the equivalent convenience alias is `jackal-serial`.
+
+- Launch the Ouster lidar, ZED camera, and DLIO localization stack:
+
+  ```bash
+  ros2 launch jackal_nav2 jackal_sensors.launch.py
+  ```
+
+  Inside the container, the equivalent convenience alias is `jackal-sensors`.
+
+- Launch GroundGrid obstacle processing, Nav2, static transforms, and the
+  navigation command bridge:
+
+  ```bash
+  ros2 launch jackal_nav2 jackal_navigation.launch.py
+  ```
+
+  Inside the container, the equivalent convenience alias is
+  `jackal-navigation`.
+
+- Record a selected profile of autonomy and sensor topics to a rosbag:
+
+  ```bash
+  ros2 launch jackal_nav2 record_jackal.launch.py
+  ```
+
+  Inside the container, the equivalent convenience alias is `jackal-record`.
+  The default recording profile is `navigation`; the other available profiles
+  are `lidar`, `semantic`, and `full`.
+
+- Send a sequence of waypoint goals from a YAML file to Nav2:
+
+  ```bash
+  ros2 run jackal_nav2 goto_nav2 /path/to/waypoints.yaml
+  ```
+
+  Inside the container, the equivalent convenience alias is:
+
+  ```bash
+  jackal-goto /path/to/waypoints.yaml
+  ```
+
+For example, the three main runtime stacks can be launched independently with:
 
 ```bash
 jackal-serial
 jackal-sensors
 jackal-navigation
-jackal-record
-jackal-goto /path/to/waypoints.yaml
 ```
-
-The serial alias launches the low-level stack:
-
-```bash
-ros2 launch jackal_launch jackal_serial.launch.py
-```
-
-Serial, sensors, and navigation deliberately remain separate processes so each
-part can be started and stopped independently:
-
-```bash
-ros2 launch jackal_launch jackal_serial.launch.py
-ros2 launch jackal_nav2 jackal_sensors.launch.py
-ros2 launch jackal_nav2 jackal_navigation.launch.py
-```
-
-## Safe no-motion validation
-
-Do not invoke `jackal-goto`, call a Nav2 action, publish a goal pose, or issue
-any waypoint/navigation goal during validation.
-
-Start only the physical serial component. Keep ros2_control off because each
-`/joint_states` message is converted into a DRIVE packet by the current serial
-implementation:
-
-```bash
-ros2 launch jackal_launch jackal_serial.launch.py \
-  start_control:=false \
-  start_robot_state_publisher:=false \
-  start_teleop:=false \
-  start_linux_joy:=false \
-  start_jeti:=false
-```
-
-A successful serial connection reaches these messages:
-
-```text
-[SERIAL] Connected to Jackal
-[SERIAL] Writing Time Sync Packet
-Loaded node '/jackal_serial_node' in container '/jackal/PlatformComposition'
-```
-
-This milestone proves that the device opened and the time-sync write returned;
-the current implementation does not read an acknowledgement from the controller.
-
-Validate ros2_control independently, without opening the physical serial port:
-
-```bash
-ros2 launch jackal_launch jackal_serial.launch.py \
-  start_serial:=false start_teleop:=false start_linux_joy:=false start_jeti:=false
-```
-
-In other terminals, launch sensors normally and navigation with its Joy command
-bridge disabled:
-
-```bash
-ros2 launch jackal_nav2 jackal_sensors.launch.py
-ros2 launch jackal_nav2 jackal_navigation.launch.py start_joy_bridge:=false
-```
-
-Together these isolated launches validate sensor, navigation, controller, and
-serial startup without connecting a controller output to the physical serial
-port, starting teleoperation inputs, translating Nav2 velocity commands into Joy
-commands, or sending a navigation goal. Stop each launch with Ctrl-C after the
-startup result is collected.
