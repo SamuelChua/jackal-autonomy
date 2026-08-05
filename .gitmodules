@@ -18,3 +18,7 @@
 	path = ws/src/zed-ros2-wrapper
 	url = https://github.com/KumarRobotics/zed-ros2-wrapper.git
 	branch = master
+[submodule "ws/src/jackal_serial"]
+	path = ws/src/jackal_serial
+	url = git@github.com:KumarRobotics/jackal-serial.git
+	branch = for_standalone_autonomy
