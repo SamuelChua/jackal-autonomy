@@ -4,7 +4,7 @@
 	branch = main
 [submodule "ws/src/DLIO"]
 	path = ws/src/DLIO
-	url = git@github.com:ankitVP77/DLIO-ROS2-Jazzy.git
+	url = git@github.com:KumarRobotics/DLIO-ROS2-Jazzy.git
 	branch = main
 [submodule "ws/src/groundgrid"]
 	path = ws/src/groundgrid
