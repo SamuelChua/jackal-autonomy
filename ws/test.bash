@@ -19,6 +19,12 @@ colcon test-result --verbose
 ros2 launch jackal_nav2 jackal_sensors.launch.py --show-args >/dev/null
 ros2 launch jackal_nav2 jackal_navigation.launch.py --show-args >/dev/null
 ros2 launch jackal_nav2 record_jackal.launch.py --show-args >/dev/null
+ros2 launch jackal_launch jackal_serial.launch.py --show-args >/dev/null
+
+if [ "${RMW_IMPLEMENTATION:-}" != "rmw_fastrtps_cpp" ]; then
+  echo "ERROR: Expected Fast DDS (rmw_fastrtps_cpp), found: ${RMW_IMPLEMENTATION:-unset}"
+  exit 1
+fi
 
 python - <<'PY'
 from importlib.metadata import version

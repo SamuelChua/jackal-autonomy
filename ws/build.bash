@@ -33,7 +33,6 @@ export CMAKE_BUILD_PARALLEL_LEVEL="$PARALLEL_WORKERS"
 cd "$WORKSPACE_DIR"
 colcon build \
   --symlink-install \
-  --packages-up-to jackal_nav2 \
   --allow-overriding ouster_ros \
   --parallel-workers "$PARALLEL_WORKERS" \
   --cmake-args \
@@ -49,4 +48,4 @@ colcon build \
 set +u
 source "$WORKSPACE_DIR/install/setup.bash"
 set -u
-echo "Built the external Jackal autonomy workspace at $WORKSPACE_DIR"
+echo "Built the unified Jackal autonomy and serial workspace at $WORKSPACE_DIR"

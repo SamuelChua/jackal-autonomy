@@ -46,7 +46,7 @@ if [ "$(id -u)" -ne 1000 ]; then
   exit 1
 fi
 
-if [ ! -d "$USER_WS/src/jackal_nav2" ]; then
+if [ ! -d "$USER_WS/src/jackal_nav2" ] || [ ! -d "$USER_WS/src/jackal_serial" ]; then
   echo "ERROR: Workspace is missing or incomplete: $USER_WS"
   echo "Run ./sync_workspace.bash before starting the container."
   exit 2
@@ -118,6 +118,9 @@ docker_args=(
 
 if input_gid="$(getent group input | cut -d: -f3)" && [ -n "$input_gid" ]; then
   docker_args+=(--group-add "$input_gid")
+fi
+if video_gid="$(getent group video | cut -d: -f3)" && [ -n "$video_gid" ]; then
+  docker_args+=(--group-add "$video_gid")
 fi
 
 if [ -f "${HOME}/.bash_history" ]; then

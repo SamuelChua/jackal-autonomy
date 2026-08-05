@@ -1,44 +1,206 @@
-# Jackal Autonomy Docker Project Context
+# Unified Jackal Autonomy and Serial Project Context
 
-## Current goal
+## Status at handoff
 
-Maintain a standalone ROS 2 Jazzy/NVIDIA Docker image for the externally mounted `jackal_nav2` workspace. The current change makes `kumarrobotics/jackal_autonomy:latest` the default, allows intentional tag replacement, adds `--tag` selection to the launcher scripts, and keeps all Git credentials on the host.
+The autonomy and low-level Jackal serial stacks are now integrated in one ROS 2
+Jazzy workspace and one `kumarrobotics/jackal_autonomy:latest` image. The final
+validated image is:
 
-## Current workspace state
+```text
+sha256:f61b67b9c910fa450e035d5ab164a02ffd5b4d74ebe7a09f13263d0ab52a25d4
+```
 
-- The repository is `/home/dcist/Docker/autonomy_ws`.
-- Do not delete Docker images, containers, files, or build cache. Only this project image may be rebuilt.
-- Do not create a Git commit; the user will commit the changes.
-- Pre-existing user changes must be preserved: `bashrc`, changes inside `ws/src/jackal_nav2`, and the untracked `run_personal.bash` with its personal Codex mount.
+No Git commit or push was made. The user intends to review and commit the outer
+repository and the `jackal_serial` submodule changes. Do not delete or retag
+other Docker images, containers, files, or build cache.
 
-## Implemented changes
+The repository is `/home/dcist/Docker/autonomy_ws`. Preserve the user's earlier
+untracked `run_personal.bash`; all other listed changes belong to this integration.
 
-- `build.bash` defaults to `kumarrobotics/jackal_autonomy:latest`, accepts `-t/--tag TAG`, and no longer refuses to replace an existing image tag.
-- `run.bash` and `join.bash` use the same default and accept `-t/--tag TAG`.
-- `run_personal.bash` has matching tag behavior while retaining its user-specific Codex bind mount.
-- `run.bash` and `run_personal.bash` no longer mount an SSH private key, public key, or `known_hosts` into the container.
-- `Dockerfile` no longer installs `openssh-client` explicitly or creates `/home/dcist/.ssh/config`. Source and credentials stay on the host.
-- `sync_workspace.bash` remains host-only and may use `~/.ssh/id_ed25519_ankit` to synchronize Git submodules before the container starts.
-- `README.md` documents the `latest` default, overwrite behavior, tag options, and host-only SSH workflow.
+## Source and submodule state
 
-## Earlier dependency fixes retained
+- The real `KumarRobotics/jackal-serial` repository is a submodule at
+  `ws/src/jackal_serial`, tracking remote `main` at
+  `b75e3f9044da2181b6f281105e5a48c62f625ea9` before the local integration
+  changes. It is intentionally dirty and uncommitted.
+- `.gitmodules` uses `git@github.com:KumarRobotics/jackal-serial.git`.
+- The temporary implementation under `/home/dcist/Docker/final_ws` was used only
+  as a behavioral reference; its files were not copied into this repository.
+- The submodule remains one repository containing six ROS packages. Colcon
+  discovers them recursively, so packages no longer need to be copied or built
+  one by one.
 
-- The Python environment contains the Torch/Ultralytics stack required downstream and validates pinned imports during the build.
-- The image protects ROS system Python from the virtualenv Matplotlib namespace collision and verifies both import paths.
-- `ros-jazzy-grid-map-rviz-plugin` is installed.
-- `ros-jazzy-diagnostic-updater` is upgraded and its Nav2-required ABI symbol is checked during the build.
+## Implemented integration
 
-## Validation status
+### Unified image and build
 
-- Shell syntax and CLI help/error behavior passed for the build, run, personal-run, join, sync, workspace-build, and workspace-test scripts.
-- Final `git diff --check`, shell syntax, CLI help, image inspection, retained-container inspection, and no-commit checks passed.
-- The default image rebuild completed successfully as `kumarrobotics/jackal_autonomy:latest`, image ID `sha256:9ed6ee97f9021ba1465aedd8b7e6c478c56cab0eca510c275af67af65ada2221`.
-- Build-time Matplotlib, Grid Map RViz, and `diagnostic_updater` checks passed.
-- A GPU-backed runtime smoke test resolved the mounted `jackal_nav2` package, imported the pinned Torch/Ultralytics/OpenCV/NumPy/Matplotlib/PyYAML stack, reported CUDA available, and confirmed that the SSH private key, public key, and SSH config are absent.
-- The full `ws/test.bash` suite passed: 26 tests, three launch-file argument checks, and the ML runtime checks.
-- The first retained smoke-test container exited early because the test command enabled Bash nounset while sourcing ROS. The corrected test used the same temporary nounset disable as the repository scripts and passed. No containers were removed.
+- `Dockerfile` now installs the Jackal serial/control dependencies alongside the
+  autonomy dependencies, including LibSerial, ZeroMQ/cppzmq, serial_driver/asio,
+  Joy, xacro, LMS1xx, robot_state_publisher, controller manager, hardware
+  interface, diff-drive controller, and joint-state broadcaster.
+- `ros-jazzy-rmw-fastrtps-cpp` is installed and
+  `RMW_IMPLEMENTATION=rmw_fastrtps_cpp` is the image default. The serial bringup
+  no longer starts a Zenoh router.
+- `ws/build.bash` runs dependency installation and one colcon command for the
+  entire mounted workspace. The completed build successfully built 14 packages.
+- `ws/test.bash` also checks the serial launch arguments and the Fast DDS default.
+- Existing Torch/Ultralytics, Matplotlib isolation, Grid Map RViz, GPU, and
+  host-only Git credential behavior remains intact.
 
-## Remaining work
+### Controller ABI mismatch and fix
 
-- No known software blocker remains for this change.
-- Physical Ouster, ZED, and Jackal hardware-in-the-loop validation remains optional follow-up work when that hardware is available.
+The first controller smoke exposed an ABI-incoherent inherited ROS installation:
+the base image contained older ABI-coupled `ros2_control` and
+`diagnostic_updater` libraries, while current Jazzy controller packages were
+being installed in the child. Mixing provider and consumer binaries caused the
+controller-manager/plugin load failure; this was not a Jackal launch-file or
+hardware-device problem.
+
+The image now upgrades the coupled set together:
+
+- `ros-jazzy-controller-interface`
+- `ros-jazzy-controller-manager`
+- `ros-jazzy-controller-manager-msgs`
+- `ros-jazzy-diagnostic-updater`
+- `ros-jazzy-diff-drive-controller`
+- `ros-jazzy-hardware-interface`
+- `ros-jazzy-joint-limits`
+- `ros-jazzy-joint-state-broadcaster`
+
+Build-time symbol checks verify that `libdiagnostic_updater.so` exports, and
+`libcontroller_manager.so` consumes, the same
+`diagnostic_updater::Updater` constructor ABI. After this coherent upgrade the
+controller manager loaded and both controllers activated successfully.
+
+### Jackal serial repository changes
+
+- Added `jackal-launch/launch/jackal_serial.launch.py` as the main ROS launch
+  entry point. It composes serial, robot-state-publisher, teleop, and optional
+  Jeti nodes, and launches ros2_control, Linux Joy, and both controller spawners.
+- Launch arguments include `namespace`, `serial_device`, `serial_baud`,
+  `start_serial`, `start_control`, `start_robot_state_publisher`,
+  `start_teleop`, `start_linux_joy`, and `start_jeti`.
+- The legacy shell entrypoint now finds and sources the unified or legacy
+  workspace, defaults to Fast DDS, and `exec`s the new launch. It does not run
+  Zenoh or use a startup sleep.
+- Package manifests now declare the missing system, ROS, launch, and internal
+  runtime dependencies. `io_context` was added to the Jeti target.
+- GTest discovery was moved under `BUILD_TESTS`, so a normal production build no
+  longer requires GTest unconditionally.
+- The submodule README documents one-workspace build, Fast DDS bringup, launch
+  arguments, and no-motion validation.
+
+### Runtime and documentation changes
+
+- `run.bash` now checks for both required source trees and maps the host `video`
+  GID in addition to input/device access. The first validation container omitted
+  that GID and could not open ZED; the corrected container opened it successfully.
+- `data/configs/zed2i.yaml` disables `depth.depth_stabilization` and
+  `pos_tracking.pos_tracking_enabled`. DLIO supplies robot odometry, and disabling
+  the unused ZED tracking module prevents its synchronous startup from blocking
+  camera and IMU publication.
+- The root README documents the unified source closure, single colcon build,
+  Fast DDS, serial alias, separate serial/sensor/navigation launches, and safe
+  validation commands.
+- Existing default image/tag selection and host-only SSH synchronization behavior
+  remains in place.
+
+## Completed validation
+
+- Rebuilt only `kumarrobotics/jackal_autonomy:latest`; the final image ID is the
+  `f61b67...` image shown above.
+- One workspace build completed successfully for all 14 packages.
+- The complete test suite passed: 26 tests plus launch-argument and runtime
+  checks.
+- A controller-only smoke test loaded controller manager and successfully
+  configured and activated `jackal_velocity_controller` and
+  `joint_state_broadcaster` after the ABI fix.
+- Hardware serial validation against the real `/dev/jackal` reached all three
+  acceptance milestones:
+
+  ```text
+  [SERIAL] Connected to Jackal
+  [SERIAL] Writing Time Sync Packet
+  Loaded node '/jackal_serial_node' in container '/jackal/PlatformComposition'
+  ```
+
+- Live sensor validation showed Ouster point clouds near 10 Hz, Ouster IMU near
+  100 Hz, and DLIO actively consuming/publishing.
+- ZED detected and opened after the video GID correction. With redundant visual
+  odometry disabled, live RGB measured about 15.08 Hz and ZED IMU measured about
+  100 Hz.
+- Navigation launched successfully and its managed Nav2 nodes reached the active
+  lifecycle state.
+
+## Validation safety conditions
+
+- All validation used `ROS_DOMAIN_ID=232` to isolate the test graph.
+- No navigation goal, goal pose, waypoint, or action request was issued.
+- Serial hardware validation disabled teleop, Linux Joy, Jeti, and ros2_control
+  command production as appropriate.
+- Controller smoke disabled the serial hardware path and all teleoperation/Joy/
+  Jeti inputs while testing controller activation.
+- Navigation validation disabled the Joy command bridge and did not request
+  motion. No drive command or navigation goal was issued.
+
+## Deferred serial and control issues
+
+These were present in the upstream/reference serial implementation and were not
+required for the requested startup milestone:
+
+1. Serial success currently proves that `/dev/jackal` opened and the time-sync
+   write returned; response reads, acknowledgement, feedback, and deserialization
+   are still absent/commented out. Add a board handshake, read loop, diagnostics,
+   reconnect behavior, and explicit write/read failure reporting.
+2. `SerialCore` accepts a baud parameter but currently selects 115200 internally.
+   Map supported parameter values to LibSerial baud enums or reject unsupported
+   values clearly.
+3. Joint-state conversion assumes at least four velocity entries in a fixed
+   `[left, right, left, right]` order. Resolve velocities by joint name, validate
+   sizes and finite values, and fail safe on malformed messages.
+4. The Jeti component emits four axes with a mapping incompatible with
+   `JackalTeleop`, while teleop indexes axis 4 without bounds checks. Define one
+   documented Joy mapping, validate array sizes, and add component tests before
+   enabling Jeti on hardware.
+5. The retained `joy_filter` source forces its e-stop button field off. Remove
+   that override or replace it with an explicit, reviewed safety policy; the new
+   main launch does not need this filter.
+6. Teleop initially publishes a zero-stamped `TwistStamped`. Stamp every command
+   at publication time and define command-source timeout/arbitration behavior.
+7. The current ros2_control model uses `mock_components/GenericSystem` to turn
+   controller output into joint states for serial serialization; it is not a
+   physical feedback hardware interface. A future design should expose actual
+   board state through a ros2_control hardware plugin or clearly document the
+   open-loop architecture.
+8. Clean up the controller YAML's deprecated limit fields and the stray quote in
+   the secondary controller `type` value, and reconcile the manager update-rate
+   documentation with the runtime configuration.
+
+## Observed warnings and proposed follow-up
+
+- **Controller RT FIFO warning:** controller manager could not enable FIFO
+  scheduling. If deterministic control timing is required, add the smallest
+  necessary `SYS_NICE` capability and rtprio/memlock limits, confirm host kernel
+  support, and then re-test; do not expand privilege without measuring the need.
+- **Deprecated jerk-limit parameters:** Jazzy warns that `has_jerk_limits` is
+  deprecated. Update `control.yaml` to the current diff-drive limit schema and
+  represent disabled jerk limits with the supported NAN/unset values.
+- **Nav inflation warning:** review the configured robot footprint, inscribed/
+  circumscribed radii, inflation radius, and cost-scaling settings together.
+  Revalidate both costmaps before changing clearances; do not reduce inflation
+  merely to silence the warning.
+- **Nav/TF startup timing warnings:** transient transform timing/extrapolation
+  messages were observed while the live sensor/DLIO/Nav2 graph came up. Capture a
+  timestamped bag if they persist after startup, verify Ouster/DLIO clock and
+  frame stamps, inspect the complete `map -> odom -> base_link` chain, and adjust
+  launch sequencing or transform tolerances only from measured latency.
+
+## Files with integration changes
+
+Outer repository changes include `.gitmodules`, `Dockerfile`, `README.md`,
+`bashrc`, `data/configs/zed2i.yaml`, `run.bash`, `ws/build.bash`, `ws/test.bash`,
+`docs/PROJECT_CONTEXT.md`, and the `ws/src/jackal_serial` gitlink. The submodule
+contains the new launch file plus entrypoint, README,
+manifest, CMake dependency, and GTest-gating changes described above. Review and
+commit the submodule first, then record its new gitlink in the outer repository;
+do not push until the user is satisfied with the hardware behavior.

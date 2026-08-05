@@ -16,3 +16,8 @@
         depth:
             min_depth: 0.3
             max_depth: 15.0
+            depth_stabilization: 0
+
+        pos_tracking:
+            # DLIO is the robot odometry source; ZED visual odometry is unused.
+            pos_tracking_enabled: false

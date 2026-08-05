@@ -8,34 +8,44 @@ USER dcist
 WORKDIR /home/dcist
 
 LABEL org.opencontainers.image.title="Jackal Autonomy"
-LABEL org.opencontainers.image.description="Standalone ROS 2 Jazzy runtime for jackal_nav2"
+LABEL org.opencontainers.image.description="Unified ROS 2 Jazzy runtime for Jackal autonomy and serial control"
 LABEL org.opencontainers.image.base.name="kumarrobotics/dcist-master-jazzy-nvda:latest"
 
-# Runtime/build dependencies for the five-package external workspace:
-# jackal_nav2, DLIO, GroundGrid, Ouster ROS, and the ZED ROS 2 wrapper.
+# Runtime/build dependencies for the external autonomy workspace and the
+# jackal_serial low-level control stack.
 RUN sudo apt-get update \
     && sudo apt-get install -y --no-install-recommends --no-upgrade \
+        cppzmq-dev \
         libcurl4-openssl-dev \
         libeigen3-dev \
         libjsoncpp-dev \
         libomp-dev \
         libpcl-dev \
+        libserial-dev \
         libspdlog-dev \
+        libzmq3-dev \
         python3-matplotlib \
         python3-yaml \
         ros-jazzy-ament-cmake-auto \
+        ros-jazzy-asio-cmake-module \
         ros-jazzy-backward-ros \
         ros-jazzy-compressed-depth-image-transport \
         ros-jazzy-compressed-image-transport \
+        ros-jazzy-controller-manager \
         ros-jazzy-cv-bridge \
         ros-jazzy-diagnostic-updater \
+        ros-jazzy-diff-drive-controller \
         ros-jazzy-geographic-msgs \
         ros-jazzy-grid-map-core \
         ros-jazzy-grid-map-cv \
         ros-jazzy-grid-map-msgs \
         ros-jazzy-grid-map-ros \
         ros-jazzy-grid-map-visualization \
+        ros-jazzy-hardware-interface \
         ros-jazzy-image-transport \
+        ros-jazzy-joint-state-broadcaster \
+        ros-jazzy-joy \
+        ros-jazzy-lms1xx \
         ros-jazzy-nav2-behaviors \
         ros-jazzy-nav2-bt-navigator \
         ros-jazzy-nav2-common \
@@ -56,11 +66,13 @@ RUN sudo apt-get update \
         ros-jazzy-pcl-ros \
         ros-jazzy-point-cloud-transport \
         ros-jazzy-rmw-cyclonedds-cpp \
+        ros-jazzy-rmw-fastrtps-cpp \
         ros-jazzy-robot-localization \
         ros-jazzy-robot-state-publisher \
         ros-jazzy-ros2bag \
         ros-jazzy-rosbag2-storage-mcap \
         ros-jazzy-rosidl-default-generators \
+        ros-jazzy-serial-driver \
         ros-jazzy-spatio-temporal-voxel-layer \
         ros-jazzy-tf2-eigen \
         ros-jazzy-theora-image-transport \
@@ -92,9 +104,20 @@ RUN test ! -e /home/dcist/ros_venv/lib/python3.12/site-packages/mpl_toolkits/__i
 RUN sudo apt-get update \
     && sudo apt-get install -y --no-install-recommends --no-upgrade \
         ros-jazzy-grid-map-rviz-plugin
-# The base has an older diagnostic_updater than the current Nav2 binaries.
-# Upgrade only that package in the child layer and verify the Nav2 library ABI.
-RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends --only-upgrade ros-jazzy-diagnostic-updater && nm -D --defined-only /opt/ros/jazzy/lib/libdiagnostic_updater.so | c++filt | grep -E 'diagnostic_updater::Updater::Updater.*double, unsigned char' >/dev/null
+# Align the ABI-coupled diagnostic and ros2_control binaries from the inherited
+# image, then verify both the provider and controller-manager consumer symbols.
+RUN sudo apt-get update \
+    && sudo apt-get install -y --no-install-recommends --only-upgrade \
+        ros-jazzy-controller-interface \
+        ros-jazzy-controller-manager \
+        ros-jazzy-controller-manager-msgs \
+        ros-jazzy-diagnostic-updater \
+        ros-jazzy-diff-drive-controller \
+        ros-jazzy-hardware-interface \
+        ros-jazzy-joint-limits \
+        ros-jazzy-joint-state-broadcaster \
+    && nm -D --defined-only /opt/ros/jazzy/lib/libdiagnostic_updater.so | c++filt | grep -E 'diagnostic_updater::Updater::Updater.*double, unsigned char' >/dev/null \
+    && nm -D --undefined-only /opt/ros/jazzy/lib/libcontroller_manager.so | c++filt | grep -E 'diagnostic_updater::Updater::Updater.*double, unsigned char' >/dev/null
 
 # Source and Git credentials remain on the host. Only append the shell hooks
 # needed by the externally mounted workspace.
@@ -108,3 +131,4 @@ RUN printf '%s\n' \
 ENV VIRTUAL_ENV=/home/dcist/ros_venv
 ENV PATH=/home/dcist/ros_venv/bin:${PATH}
 ENV PYTHONPATH=/home/dcist/ros_venv/lib/python3.12/site-packages
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
