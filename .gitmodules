@@ -8,8 +8,8 @@
 	branch = main
 [submodule "ws/src/groundgrid"]
 	path = ws/src/groundgrid
-	url = git@github.com:ZacRavichandran/groundgrid_ros2.git
-	branch = for_standalone_autonomy
+	url = git@github.com:KumarRobotics/groundgrid.git
+	branch = main
 [submodule "ws/src/ouster-ros"]
 	path = ws/src/ouster-ros
 	url = git@github.com:ZacRavichandran/ouster-ros.git
