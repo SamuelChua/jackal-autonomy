@@ -12,8 +12,8 @@
 	branch = main
 [submodule "ws/src/ouster-ros"]
 	path = ws/src/ouster-ros
-	url = git@github.com:ZacRavichandran/ouster-ros.git
-	branch = feature/adustable_namespace
+	url = git@github.com:KumarRobotics/ouster-ros2.git
+	branch = main
 [submodule "ws/src/zed-ros2-wrapper"]
 	path = ws/src/zed-ros2-wrapper
 	url = https://github.com/KumarRobotics/zed-ros2-wrapper.git
