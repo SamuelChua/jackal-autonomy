@@ -4,8 +4,7 @@ Standalone Docker image and external ROS 2 Jazzy workspace for
 [`jackal_nav2`](https://github.com/ankitVP77/jackal_nav2).
 
 The image defaults to `kumarrobotics/jackal_autonomy:latest` and extends the
-existing local `kumarrobotics/dcist-master-jazzy-nvda:latest` image as-is. The
-base is not rebuilt. No additional application source is cloned or copied into
+existing local `kumarrobotics/dcist-master-jazzy-nvda:latest` image as-is. This is used as a base image and is not rebuilt. If you don't have the initial base image, refer to the  [`dcist_master_jazzy`](https://github.com/KumarRobotics/dcist_master_ros2) repo. No additional application source is cloned or copied into
 the derived image; `ws` is populated on the host and bind-mounted over
 `/home/dcist/dcist_ws`.
 
@@ -19,24 +18,16 @@ current `jackal_nav2/main` launch package:
 
 | Path | Purpose |
 | --- | --- |
-| `jackal_nav2` | Standalone sensor, navigation, recording, and helper launch package |
-| `DLIO` | `direct_lidar_inertial_odometry` |
-| `groundgrid` | Ground segmentation and obstacle cloud |
+| `jackal_nav2` | Standalone nav2 autonomy with sensors, navigation, recording, and helper launch package |
+| `DLIO` | `direct_lidar_inertial_odometry`- For Localization |
+| `groundgrid` | Ground segmentation and obstacle cloud generation |
 | `ouster-ros` | Ouster driver and messages; recursively includes Ouster SDK |
 | `zed-ros2-wrapper` | ZED components and wrapper |
 
-Safety controller, SPINE, MOCHA, teaming/communications, and unrelated semantic
-navigation repositories are intentionally not included. The image has
-Ultralytics plus its direct inference dependencies for downstream use, but it
-does not include bitsandbytes, tiktoken, torchaudio, or the old SPINE/VLM
-package set.
-
 ## First-time setup
 
-`sync_workspace.bash` performs Git operations on the host and uses
-`~/.ssh/id_ed25519_ankit` by default; the key must have mode `600`. The key and
-`known_hosts` remain on the host and are never configured, copied, or mounted
-inside the container. Set `JACKAL_AUTONOMY_SSH_KEY` to use another host key.
+`sync_workspace.bash` performs a Git submodules operations on the host and uses
+a validated SSH key by default; the key must have mode `600`. Set the `SSH_KEY` variable in the script to use your own validated key. The key you use must have read access to the submodules as detailed in `.gitmodules` file.
 
 ```bash
 git clone <this-repository-url> jackal_autonomy
@@ -109,28 +100,3 @@ Sensors and navigation deliberately remain separate processes:
 ros2 launch jackal_nav2 jackal_sensors.launch.py
 ros2 launch jackal_nav2 jackal_navigation.launch.py
 ```
-
-The Clearpath platform/hardware driver that consumes the Joy output must be
-running separately. `safety_controller` is not used.
-
-## Validation
-
-The current `latest` image is validated with rosdep resolution, a seven-package
-Colcon build, all 26 `jackal_nav2` tests, GPU-backed Torch/Ultralytics imports,
-an 18-ELF runtime link scan, and an isolated Nav2 lifecycle/plugin startup.
-Physical Ouster, ZED, and Jackal hardware were not connected during these tests.
-
-## Configuration
-
-- `-t TAG`, `--tag TAG`: select a tag for `build.bash`, `run.bash`, or `join.bash`; the CLI option overrides image environment variables.
-- `JACKAL_AUTONOMY_TAG`: default tag when `--tag` is omitted (default `latest`).
-- `JACKAL_AUTONOMY_REPOSITORY`: image repository used with a tag (default `kumarrobotics/jackal_autonomy`).
-- `JACKAL_AUTONOMY_IMAGE`: optional full image reference when `--tag` is omitted.
-- `BASE_IMAGE`: override the local base tag used by `build.bash`.
-- `JACKAL_AUTONOMY_SSH_KEY`: host-only key used by `sync_workspace.bash`; it is never mounted into the container.
-- `JACKAL_AUTONOMY_ZED_SETTINGS`: override the offline ZED settings directory.
-- `JACKAL_AUTONOMY_SKIP_SYNC=1`: skip the automatic pinned submodule check.
-- `JACKAL_AUTONOMY_SYNC_REMOTE=1`: opt into moving submodules to branch heads.
-- `JACKAL_AUTONOMY_GPUS`: Docker GPU selector (default `all`).
-- `COLCON_PARALLEL_WORKERS`: workspace build concurrency (default `4`).
-- `ROS_DOMAIN_ID`: ROS domain selected in `bashrc` (default `2`).
