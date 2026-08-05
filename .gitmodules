@@ -1,6 +1,6 @@
 [submodule "ws/src/jackal_nav2"]
 	path = ws/src/jackal_nav2
-	url = git@github.com:ankitVP77/jackal_nav2.git
+	url = git@github.com:KumarRobotics/jackal-nav2.git
 	branch = main
 [submodule "ws/src/DLIO"]
 	path = ws/src/DLIO
