@@ -15,3 +15,7 @@ data/configs/*
 ws/build/
 ws/install/
 ws/log/
+
+tmp_files/*
+run_personal.bash
+docs/*
