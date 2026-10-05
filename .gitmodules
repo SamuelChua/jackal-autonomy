@@ -22,3 +22,23 @@
 	path = ws/src/jackal_serial
 	url = git@github.com:KumarRobotics/jackal-serial.git
 	branch = for_standalone_autonomy
+[submodule "ws/src/air_sem_gridmap_interfaces"]
+	path = ws/src/air_sem_gridmap_interfaces
+	url = git@github.com:SamuelChua/air_sem_gridmap_interfaces.git
+[submodule "ws/src/air_sem_gridmap"]
+	path = ws/src/air_sem_gridmap
+	url = git@github.com:SamuelChua/air_sem_gridmap.git
+[submodule "ws/src/air_sem_graph"]
+	path = ws/src/air_sem_graph
+	url = git@github.com:SamuelChua/air_sem_graph.git
+[submodule "ws/src/spine-multi"]
+	path = ws/src/spine-multi
+	url = git@github.com:ZacRavichandran/spine-multi.git
+	branch = feat/bridge-spine-integration
+[submodule "ws/src/vision-ros2"]
+	path = ws/src/vision-ros2
+	url = git@github.com:ZacRavichandran/vision-ros2.git
+	branch = feat/bridge-spine-integration
+[submodule "ws/src/teaming_msgs"]
+	path = ws/src/teaming_msgs
+	url = git@github.com:ZacRavichandran/teaming_msgs.git
