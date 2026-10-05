@@ -1,9 +1,5 @@
-.git
-.github
-.ros_docker
-.docker.xauth
-data
-ws
-**/__pycache__
-**/.pytest_cache
-**/*.pyc
+**
+!Dockerfile
+!requirements-ml.txt
+!requirements-bridge.txt
+!constraints-bridge.txt

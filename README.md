@@ -8,11 +8,11 @@ Unified Docker image and external ROS 2 Jazzy workspace for:
   provides low-level serial control, ros2_control, robot description, and RC/
   joystick teleoperation.
 
-The image defaults to `kumarrobotics/jackal_autonomy:latest` and extends the
-existing local `kumarrobotics/dcist-master-jazzy-nvda:latest` image as-is. This
-base image is not rebuilt. If it is not available locally, refer to the
-[`dcist_master_jazzy`](https://github.com/KumarRobotics/dcist_master_ros2)
-repository.
+The BRIDGE build helper defaults to `kumarrobotics/jackal_autonomy:bridge-spine-v1`
+and extends the local `dcist-master-jazzy-nvda:bridge-base-b20fac7` image.
+The base image must already exist, and its `dcist` UID must match the host user.
+The build helper passes the host UID and refuses to overwrite an existing output
+tag. Set `BASE_IMAGE` to select another compatible local base.
 
 Application source is not copied into the derived image. The host-populated
 `ws` directory is bind-mounted at `/home/dcist/dcist_ws`, so autonomy and
@@ -38,33 +38,50 @@ The `jackal_serial` submodule stays as one repository at
 `ws/src/jackal_serial`. Colcon recursively discovers its individual ROS
 packages; they do not need to be copied or built one by one.
 
-## First-time setup
+## BRIDGE build preparation
 
-`sync_workspace.bash` performs Git submodule operations on the host and uses a
-robot validated SSH key by default; the key must have mode `600`. Set
-`JACKAL_AUTONOMY_SSH_KEY` to override the key path. The selected key must have
-read access to the repositories listed in `.gitmodules`.
+The research submodules are pinned in the parent repository:
+
+| Path under `ws/src` | Purpose |
+| --- | --- |
+| `air_sem_gridmap_interfaces` | Semantic mapping interfaces |
+| `air_sem_gridmap` | Semantic grid mapping |
+| `air_sem_graph` | Semantic graph |
+| `spine-multi` | Planner and ROS executor |
+| `vision-ros2` | Visual verification |
+| `teaming_msgs` | Shared mission and VLM interfaces |
+
+`requirements-bridge.txt` adds research dependencies to `requirements-ml.txt`.
+`constraints-bridge.txt` protects the existing Torch, NumPy, and OpenCV versions.
+This is not a complete transitive dependency lock. Docker builds check imports;
+model inference and GPU compatibility still require validation in the image.
+
+`ws/colcon.meta` supplements missing package dependencies without changing the
+submodules. `ws/build.bash` also installs the separate SPINE Python project into
+the image venv in editable mode, without resolving dependencies again.
+
+### On the host: build the dependency image
+
+For the existing checkout and pinned submodules, run as your regular user:
 
 ```bash
-git clone <this-repository-url> jackal_autonomy
-cd jackal_autonomy
-./sync_workspace.bash
-./build.bash
-./run.bash
+cd ~/jackal-autonomy
+JACKAL_DOCKER_SUDO=1 ./build.bash --tag bridge-spine-v1
 ```
 
-Both build and run default to `kumarrobotics/jackal_autonomy:latest`. Builds are
-allowed to overwrite that tag. Use the same tag option to build, run, or join a
-named variant:
+`JACKAL_DOCKER_SUDO=1` uses sudo only for Docker commands, preserving your UID
+and host paths. Omit it if your user already has Docker access. Do not run the
+whole helper with sudo. If this output tag already exists, choose a new tag
+such as `bridge-spine-v2` and use it consistently below.
+
+### On the host: open the container shell
 
 ```bash
-./build.bash --tag experiment
-./run.bash --tag experiment
-./join.bash --tag experiment
+cd ~/jackal-autonomy
+JACKAL_DOCKER_SUDO=1 ./run.bash --tag bridge-spine-v1
 ```
 
-Inside the container, one workspace command installs declared dependencies and
-runs one colcon build for both autonomy and low-level control:
+### Inside the container: build the mounted ROS workspace
 
 ```bash
 jackal-build
@@ -72,19 +89,34 @@ source /home/dcist/dcist_ws/install/setup.bash
 jackal-test
 ```
 
-Run `./sync_workspace.bash` manually after cloning and whenever you intentionally
-want to restore the submodules to the commits pinned by the outer repository. Take caution to always commit any submodule changes in this repository before running the sync script, because it will reset the submodules to the recorded commits.
+The existing `jackal-test` checks the hardware workspace; it does not establish
+BRIDGE model or navigation readiness. Opening the shell does not launch nodes.
 
-To advance each submodule to the head of the branch recorded in `.gitmodules`, use the
-explicit update mode and then review and commit the changed gitlinks:
+From another host terminal, join the running container with:
 
 ```bash
-./sync_workspace.bash --remote
+cd ~/jackal-autonomy
+JACKAL_DOCKER_SUDO=1 ./join.bash --tag bridge-spine-v1
 ```
+
+Model caches persist under host `data/weights`; weights are not included in the
+image. Edit the host `bashrc` for planner settings (`SPINE_LLM_*`). The default
+planner URL is `http://172.20.129.12:11434/v1`; confirm it is reachable from the
+robot. Model downloads and inference still need a separate smoke test.
+
+For a fresh clone, initialize the recorded pins with
+`git submodule update --init --recursive`. Avoid `--remote` when reproducing
+this deployment. Existing submodule pins are not changed by the build helper.
+
+Before running BRIDGE on hardware, prepare and validate the robot topic/frame
+and Nav2 action configuration. The Warty simulation launch files are not a
+validated hardware profile. Use one owner for sensors, odometry, TF, GroundGrid,
+and Nav2; do not launch duplicate stacks from the research workflow.
 
 ## Runtime
 
-The launcher preserves the prior robot-container experience: UID 1000, GPU and
+The launcher uses the base image’s `dcist` user, verifies its UID against the host,
+and provides GPU and
 X11 access, host networking, privileged device access, persistent `data` and
 `.ros_docker` mounts, the external workspace, dialout/input/video groups, and a
 host-editable `bashrc`.

@@ -1,0 +1,26 @@
+{
+  "names": {
+    "vision_ros2": {
+      "dependencies": [
+        "teaming_msgs",
+        "rclpy",
+        "geometry_msgs",
+        "std_msgs",
+        "visualization_msgs"
+      ]
+    },
+    "air_sem_gridmap": {
+      "dependencies": [
+        "tf2_ros",
+        "ament_index_python"
+      ]
+    },
+    "spine_multi_ros": {
+      "dependencies": [
+        "sensor_msgs",
+        "visualization_msgs",
+        "rcl_interfaces"
+      ]
+    }
+  }
+}

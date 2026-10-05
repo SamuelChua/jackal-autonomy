@@ -4,12 +4,17 @@ FROM ${BASE_IMAGE}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG DEBIAN_FRONTEND=noninteractive
+# Must match dcist in the selected base image; build.bash supplies the host UID.
+ARG HOST_UID=1000
+ARG BASE_IMAGE
+RUN test "$(id -u dcist)" = "$HOST_UID"
+LABEL org.kumarrobotics.jackal.host-uid="${HOST_UID}"
 USER dcist
 WORKDIR /home/dcist
 
 LABEL org.opencontainers.image.title="Jackal Autonomy"
 LABEL org.opencontainers.image.description="Unified ROS 2 Jazzy runtime for Jackal autonomy and serial control"
-LABEL org.opencontainers.image.base.name="kumarrobotics/dcist-master-jazzy-nvda:latest"
+LABEL org.opencontainers.image.base.name="${BASE_IMAGE}"
 
 # Runtime/build dependencies for the external autonomy workspace and the
 # jackal_serial low-level control stack.
@@ -24,8 +29,17 @@ RUN sudo apt-get update \
         libserial-dev \
         libspdlog-dev \
         libzmq3-dev \
+        python3-colcon-metadata \
         python3-matplotlib \
         python3-yaml \
+        ros-jazzy-ament-cmake-python \
+        ros-jazzy-ament-index-python \
+        ros-jazzy-message-filters \
+        ros-jazzy-rcl-interfaces \
+        ros-jazzy-sensor-msgs-py \
+        ros-jazzy-tf2-ros \
+        ros-jazzy-vision-msgs \
+        ros-jazzy-visualization-msgs \
         ros-jazzy-ament-cmake-auto \
         ros-jazzy-asio-cmake-module \
         ros-jazzy-backward-ros \
@@ -80,10 +94,10 @@ RUN sudo apt-get update \
         ros-jazzy-zed-msgs
 
 # Keep the ML environment separate from ROS' system Python. Torch matches the
-# known-working CUDA wheel set used by the predecessor image; torchaudio,
-# bitsandbytes, and tiktoken are deliberately not installed.
+# known-working CUDA wheel set used by the predecessor image. Research
+# dependencies are resolved together under constraints; torchaudio is not needed.
 ENV PYTHONNOUSERSITE=1
-COPY --chown=dcist:dcist requirements-ml.txt /tmp/jackal-autonomy-requirements.txt
+COPY --chown=dcist:dcist requirements-ml.txt requirements-bridge.txt constraints-bridge.txt /tmp/
 RUN python3 -m venv --system-site-packages /home/dcist/ros_venv \
     && source /home/dcist/ros_venv/bin/activate \
     && python -m pip install --no-cache-dir \
@@ -91,13 +105,18 @@ RUN python3 -m venv --system-site-packages /home/dcist/ros_venv \
         torchvision==0.20.1 \
         --index-url https://download.pytorch.org/whl/cu121 \
     && python -m pip install --no-cache-dir \
-        -r /tmp/jackal-autonomy-requirements.txt
+        -c /tmp/constraints-bridge.txt \
+        -r /tmp/requirements-ml.txt -r /tmp/requirements-bridge.txt \
+    && python -m pip check
 RUN source /home/dcist/ros_venv/bin/activate && python -c 'import cv2, matplotlib, numpy, torch, torchvision, ultralytics, yaml; assert numpy.__version__ == "1.26.4"; assert cv2.__version__ == "4.11.0"; assert torch.__version__ == "2.5.1+cu121"; assert torchvision.__version__ == "0.20.1+cu121"; assert ultralytics.__version__ == "8.4.112"; print("Pinned Python runtime imports passed")'
 
 # Ubuntu's Matplotlib package preloads its older mpl_toolkits namespace.
 # Preload the venv copy for both venv and ROS system-Python entry points.
 RUN test ! -e /home/dcist/ros_venv/lib/python3.12/site-packages/mpl_toolkits/__init__.py && printf %s '"""Prefer the venv Matplotlib toolkit over the Ubuntu namespace."""' > /home/dcist/ros_venv/lib/python3.12/site-packages/mpl_toolkits/__init__.py && test ! -e /home/dcist/ros_venv/lib/python3.12/site-packages/00-jackal-matplotlib.pth && printf %s 'import mpl_toolkits' > /home/dcist/ros_venv/lib/python3.12/site-packages/00-jackal-matplotlib.pth && test ! -e /usr/local/lib/python3.12/dist-packages/00-jackal-matplotlib.pth && sudo ln -s /home/dcist/ros_venv/lib/python3.12/site-packages/00-jackal-matplotlib.pth /usr/local/lib/python3.12/dist-packages/00-jackal-matplotlib.pth && /home/dcist/ros_venv/bin/python -c 'from mpl_toolkits.mplot3d import Axes3D; print("Venv Matplotlib 3D import passed")' && PYTHONPATH=/home/dcist/ros_venv/lib/python3.12/site-packages /usr/bin/python3 -c 'from mpl_toolkits.mplot3d import Axes3D; print("ROS system-Python Matplotlib 3D import passed")'
 
+
+# Import checks load no weights and need no GPU at build time.
+RUN source /home/dcist/ros_venv/bin/activate && python -c 'import accelerate, bitsandbytes, einops, networkx, open_clip, openai, scipy, sklearn, supervision, tiktoken, timm; from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2_5_VLForConditionalGeneration; from supervision.draw.color import DEFAULT_COLOR_PALETTE; print("BRIDGE dependency imports passed")'
 
 # GroundGrid declares this RViz plugin as a runtime dependency. Keep it in the
 # image even though headless autonomy launches do not start RViz.

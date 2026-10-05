@@ -5,7 +5,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 IMAGE_REPOSITORY="${JACKAL_AUTONOMY_REPOSITORY:-kumarrobotics/jackal_autonomy}"
-IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-latest}}"
+IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-bridge-spine-v1}}"
 USER_WS="$PROJECT_DIR/ws"
 DATA_DIR="$PROJECT_DIR/data"
 ROS_DIR="$PROJECT_DIR/.ros_docker"
@@ -40,11 +40,8 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$(id -u)" -ne 1000 ]; then
-  echo "ERROR: This script must be run by the UID-1000 host user."
-  echo "       Current UID: $(id -u), current GID: $(id -g)"
-  exit 1
-fi
+source "$PROJECT_DIR/docker_helpers.bash"
+jackal_docker_init
 
 if [ ! -d "$USER_WS/src/jackal_nav2" ] || [ ! -d "$USER_WS/src/jackal_serial" ]; then
   echo "ERROR: Workspace is missing or incomplete: $USER_WS"
@@ -57,13 +54,19 @@ if [ ! -d "$ZED_SETTINGS" ]; then
   exit 2
 fi
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+if ! "${DOCKER[@]}" image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "ERROR: Image is not available locally: $IMAGE"
   echo "Build it with ./build.bash."
   exit 3
 fi
 
-XAUTH_FILE="/tmp/.jackal_autonomy.docker.xauth"
+jackal_check_image_uid "$IMAGE"
+for required in "$BASHRC_HOST" "$ZED_CONFIG"; do
+  [ -f "$required" ] || { echo "Missing runtime file: $required"; exit 2; }
+done
+mkdir -p "$ROS_DIR" "$DATA_DIR/weights" "$DATA_DIR/vlm-inspections"
+
+XAUTH_FILE="/tmp/.jackal_autonomy.$(id -u).docker.xauth"
 touch "$XAUTH_FILE"
 if command -v xauth >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then
   xauth_list="$(xauth nlist "${DISPLAY}" 2>/dev/null | sed -e 's/^..../ffff/' || true)"
@@ -82,7 +85,7 @@ echo -e "\033[1;35mBASHRC HOST: \033[0m$BASHRC_HOST"
 docker_args=(
   run
   --gpus "${JACKAL_AUTONOMY_GPUS:-all}"
-  -u 1000
+  --user dcist
   --mount "type=bind,src=$ZED_SETTINGS,dst=/usr/local/zed/settings,readonly"
   -it
   --workdir /home/dcist
@@ -125,5 +128,6 @@ if [ -n "${CLEARPATH_DIR:-}" ] && [ -d "$CLEARPATH_DIR" ]; then
   docker_args+=(--mount "type=bind,src=$CLEARPATH_DIR,dst=/etc/clearpath,readonly")
 fi
 
-docker_args+=("$IMAGE")
-docker "${docker_args[@]}"
+# Explicit shell: this helper never starts a sensor, controller, or mission.
+docker_args+=(--entrypoint /bin/bash "$IMAGE")
+"${DOCKER[@]}" "${docker_args[@]}"

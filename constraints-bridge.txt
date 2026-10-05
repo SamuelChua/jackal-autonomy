@@ -1,0 +1,8 @@
+# Preserve the existing CUDA wheel set and autonomy runtime dependencies.
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+matplotlib==3.10.3
+numpy==1.26.4
+opencv-python==4.11.0.86
+PyYAML==6.0.2
+ultralytics==8.4.112

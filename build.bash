@@ -3,9 +3,9 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-BASE_IMAGE="${BASE_IMAGE:-kumarrobotics/dcist-master-jazzy-nvda:latest}"
+BASE_IMAGE="${BASE_IMAGE:-dcist-master-jazzy-nvda:bridge-base-b20fac7}"
 IMAGE_REPOSITORY="${JACKAL_AUTONOMY_REPOSITORY:-kumarrobotics/jackal_autonomy}"
-IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-latest}}"
+IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-bridge-spine-v1}}"
 
 usage() {
   echo "Usage: $0 [-t|--tag TAG]"
@@ -34,25 +34,28 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$(id -u)" -ne 1000 ]; then
-  echo "ERROR: This script must be run by the UID-1000 host user."
-  echo "       Current UID: $(id -u), current GID: $(id -g)"
-  exit 1
-fi
+source "$PROJECT_DIR/docker_helpers.bash"
+jackal_docker_init
 
-if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+if ! "${DOCKER[@]}" image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
   echo "ERROR: Required base image is not available locally: $BASE_IMAGE"
   echo "This script will not rebuild or substitute for the base image."
   exit 2
 fi
 
 
+if "${DOCKER[@]}" image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo "ERROR: Output image already exists: $IMAGE. Choose a new --tag."
+  exit 3
+fi
+
 echo -e "\033[0;35mBUILDING JACKAL AUTONOMY IMAGE\033[0m"
 echo -e "\033[0;35mBASE IMAGE: \033[0m$BASE_IMAGE"
 echo -e "\033[0;35mOUTPUT IMAGE: \033[0m$IMAGE"
 
-docker build \
+"${DOCKER[@]}" build \
   --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+  --build-arg "HOST_UID=$(id -u)" \
   --file "$PROJECT_DIR/Dockerfile" \
   --tag "$IMAGE" \
   "$PROJECT_DIR"

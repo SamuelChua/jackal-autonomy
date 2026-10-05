@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 IMAGE_REPOSITORY="${JACKAL_AUTONOMY_REPOSITORY:-kumarrobotics/jackal_autonomy}"
-IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-latest}}"
+IMAGE="${JACKAL_AUTONOMY_IMAGE:-${IMAGE_REPOSITORY}:${JACKAL_AUTONOMY_TAG:-bridge-spine-v1}}"
 
 usage() {
   echo "Usage: $0 [-t|--tag TAG]"
@@ -31,14 +32,18 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
-container_id="$(docker ps --quiet --filter "ancestor=$IMAGE" | head -n 1)"
+source "$PROJECT_DIR/docker_helpers.bash"
+jackal_docker_init
+jackal_check_image_uid "$IMAGE"
+container_id="$("${DOCKER[@]}" ps --quiet --filter "ancestor=$IMAGE" | head -n 1)"
 
 if [ -z "$container_id" ]; then
   echo "ERROR: No running container found for image: $IMAGE"
   exit 1
 fi
 
-docker exec \
+"${DOCKER[@]}" exec \
+  --user dcist \
   --privileged \
   -e "DISPLAY=${DISPLAY:-}" \
   -e "LINES=$(tput lines 2>/dev/null || echo 24)" \
