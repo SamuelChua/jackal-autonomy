@@ -207,3 +207,27 @@ jackal-serial
 jackal-sensors
 jackal-navigation
 ```
+
+
+## BRIDGE reliability update — October 26, 2026
+
+The pinned `spine-multi` revision `e2cf412434f547c4a52b2d7eae4a093b3056f73b`
+adds bounded navigation/transport waits, explicit planner failure reasons,
+frontier revalidation, conservative RADIO clue deduplication and bounded
+candidate inspections. See its README for timeout defaults and limitations.
+The offline suite passed 196 tests; the legacy live-planner test was excluded.
+Hardware validation remains required. Uneven-terrain mapping is unchanged.
+
+No Docker dependency changes are required. With no active mission, preserve local
+robot modifications, update this repository and only the SPINE submodule to its
+recorded commit, then run `jackal-build --skip-rosdep` in the existing container.
+Do not use `git submodule update --remote` or reset local calibration/controller
+changes. If the SPINE checkout has robot-specific changes, merge the pinned
+revision on a local branch and test that combined revision before restarting.
+Restart the planner and executor together only after confirming no old navigation
+goal remains active. Do not automatically launch a mission after the update.
+
+An unresolved executor/navigation result pauses the mission and blocks further
+dispatch. Cancellation acknowledgement alone does not clear that condition.
+Do not restart processes simply to clear this interlock while a robot goal may
+still be active. Resolve the navigation state before resubmitting a mission.
